@@ -1,0 +1,123 @@
+---
+title: "Week 1 Assignment"
+author: "Stefano Biguzzi"
+date: "8/28/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(RCurl)
+```
+
+
+### Introduction to Article and Data
+
+For this assignment I chose the article "[Voter Registrations Are Way, Way Down During The Pandemic](https://fivethirtyeight.com/features/voter-registrations-are-way-way-down-during-the-pandemic/)". In our current political climate it is more important than ever to get people registered to vote. The pandemic has made it very difficult for people to register in person, and as a result for the months of March, April, May there has been a decline in voter registration.This Fivethirtyeight article attributes the lower numbers to COVID-19, which is a logical conclusion as the timing of reduced voter registration and COVID pandemic overlap.
+
+
+## Loading Data Into R from GitHub
+
+```{r loading-data}
+  rawdata <- getURL(
+    "https://raw.githubusercontent.com/sbiguzzi/Data607HW1/master/new-voter-registrations.csv"
+    )
+  voter_registration <- read.csv(text = rawdata)
+```
+
+## Manipulate data for ease of use
+
+### Pivot table on year
+
+This allows me to see the year differences in side by side columns rather than in a list. I think it makes it easier to read and allows for percent change calculations.
+
+```{r voter-registration-pivot}
+voter_registration_pivot <- voter_registration %>%
+  pivot_wider(names_from = Year,values_from = New.registered.voters)
+```
+  
+  
+  
+### Rename year columns
+```{r rename-year-columns}
+names(voter_registration_pivot)[names(voter_registration_pivot) == "2016"] <- "year_2016"
+names(voter_registration_pivot)[names(voter_registration_pivot) == "2020"] <- "year_2020"
+```
+
+### Create percent change and color columns and change month column
+This can help make more graphs and charts to enhance the article
+
+creating percent change
+```{r percent-change-column}
+voter_registration_pivot <- voter_registration_pivot %>%
+  mutate(percent_change_2016_to_2020 = ((year_2020-year_2016)/year_2016)*100)
+```
+
+creating column color
+```{r color-column}
+voter_registration_pivot <- voter_registration_pivot %>%
+  mutate(Color = ifelse(percent_change_2016_to_2020 <0, "#E74C3C","#5DADE2"))
+```
+
+updating month name to be able to sort it chronologically
+```{r month-column}
+voter_registration_pivot$Month = factor(voter_registration_pivot$Month, levels = month.abb)
+```
+
+## Analyzing data a from article
+
+count of COVID-19 months that had less registered voters in 2020 than in 2016
+```{r less-registered-months}
+sum(
+  (voter_registration_pivot$Month == "Mar" |
+     voter_registration_pivot$Month == "Apr" |
+     voter_registration_pivot$Month == "May") &
+    voter_registration_pivot$percent_change_2016_to_2020 < 0
+  )
+```
+
+Count of total COVID-19 months in the data set
+```{r all-covid19-months}
+sum(
+  (voter_registration_pivot$Month == "Mar" |
+     voter_registration_pivot$Month == "Apr" |
+     voter_registration_pivot$Month == "May")
+  )
+```
+
+places with more registered voters in 2020 than in 2016 during COVID-19 months
+```{r more-registered-voters}
+subset(voter_registration_pivot,
+       (voter_registration_pivot$Month == "Mar" |
+          voter_registration_pivot$Month == "Apr" |
+          voter_registration_pivot$Month == "May") &
+         voter_registration_pivot$percent_change_2016_to_2020 > 0)
+```
+
+
+## Create example graph for Florida percent change
+
+```{r barplot-example}
+example_plot <- subset(voter_registration_pivot, Jurisdiction == "Florida") %>%
+  ggplot(aes(x = Month,y = percent_change_2016_to_2020,
+    fill = Color)) + geom_col() + scale_fill_identity(guide = FALSE) +
+  labs(y="Percent Change 2016 to 2020", x="Month")
+
+theme_update <-
+  theme(plot.title = element_text(face="bold",hjust = 0.5),
+        panel.background = element_blank(),
+        axis.line = element_line((colour = "grey")))
+
+example_plot+geom_hline(yintercept=0, color = 'grey')+ggtitle("Florida") + theme_update
+
+```
+
+## Conclusion / Findings and Recommendations
+
+Out of the 29 total data points that show registered voters in the months included in the COVID-19 pandemic (Mar, Apr, May), 27 show a decrease in registered voters. The exceptions are California's March numbers and Maryland's May numbers.
+
+The analysis and article from FiveThirtyEight highlight some challenges in registering voters for the 2020 election amid the COVID-19 pandemic. One interesting next step would be to find data about who is being registered online. Are the older generations suffering more as they might not have the technical abilities to register online? Are people in more rural settings suffering more, with less at-home internet service? If there is some correlation between age or location, what can the government or non-profits do to make it easier for these groups to register to vote.
